@@ -36,8 +36,8 @@
                 <div>
                     <h1 class="text-xl sm:text-2xl font-black tracking-tight">Rifa en Línea 000 - 999</h1>
                     <p class="text-xs text-indigo-200 flex items-center gap-1.5 mt-0.5">
-                        <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span id="connection-status">Conectado a Firebase Firestore</span>
+                        <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="connection-status">Verificando base de datos de Google...</span>
                     </p>
                 </div>
             </div>
@@ -188,27 +188,48 @@
     <!-- Contenedor de Alertas Toast -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
 
+    <!-- Modal de Configuración de Firebase -->
+    <div id="config-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden p-6 flex flex-col gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
+                    <i data-lucide="database" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Conectar Base de Datos Google</h3>
+                    <p class="text-xs text-slate-500">Para sincronización en vivo entre teléfonos</p>
+                </div>
+            </div>
+            <p class="text-xs text-slate-600">
+                Pega aquí tu configuración de <b>Firebase Firestore</b> (puedes crear un proyecto gratis en <a href="https://console.firebase.google.com" target="_blank" class="text-indigo-600 underline">console.firebase.google.com</a>):
+            </p>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Project ID de Firebase *</label>
+                <input type="text" id="cfg-project-id" placeholder="ej: mi-rifa-app-123" 
+                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div class="flex gap-3 mt-2">
+                <button id="save-cfg-btn" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all">
+                    Conectar Ahora
+                </button>
+                <button id="close-cfg-btn" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-all">
+                    Omitir
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Lógica de Firebase Firestore y Aplicación -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rifa-global-app-001';
-        let firebaseConfig = {};
-        try {
-            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                apiKey: "AIzaSyDummyKeyForStaticHosting",
-                authDomain: "rifa-app.firebaseapp.com",
-                projectId: "rifa-app-cloud"
-            };
-        } catch (e) {
-            firebaseConfig = { projectId: "rifa-app-cloud" };
-        }
+        let appId = typeof __app_id !== 'undefined' ? __app_id : 'rifa-global-app-001';
+        let savedProjectId = localStorage.getItem('rifa_firebase_project_id') || 'rifa-cloud-db-v1';
 
         let db = null;
         let auth = null;
-        let currentUser = null;
 
         let soldTickets = {};
         let currentFilter = 'all';
@@ -445,17 +466,16 @@
             soldTickets[numToSave] = ticketData;
             updateAllVisuals(numToSave);
 
-            // Guardar en Firestore si está conectado, de lo contrario respaldo local
             if (db) {
                 try {
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', numToSave), ticketData);
-                    showToast(`Número ${numToSave} guardado en Google Cloud`, 'success');
+                    await setDoc(doc(db, 'artifacts', savedProjectId, 'public', 'data', 'tickets', numToSave), ticketData);
+                    showToast(`Sincronizado en la nube de Google con éxito`, 'success');
                 } catch (err) {
-                    localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
-                    showToast(`Guardado localmente (Modo sin conexión)`, 'info');
+                    localStorage.setItem('rifa_backup_data', JSON.stringify(soldTickets));
+                    showToast(`Guardado en respaldo local`, 'info');
                 }
             } else {
-                localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
+                localStorage.setItem('rifa_backup_data', JSON.stringify(soldTickets));
                 showToast(`Número ${numToSave} guardado`, 'success');
             }
         }
@@ -471,15 +491,15 @@
 
             if (db) {
                 try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', numToRelease));
-                    showToast(`Número ${numToRelease} liberado en la nube`, 'info');
+                    await deleteDoc(doc(db, 'artifacts', savedProjectId, 'public', 'data', 'tickets', numToRelease));
+                    showToast(`Liberado en la nube`, 'info');
                 } catch (err) {
-                    localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
+                    localStorage.setItem('rifa_backup_data', JSON.stringify(soldTickets));
                     showToast(`Liberado localmente`, 'info');
                 }
             } else {
-                localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
-                showToast(`Número ${numToRelease} liberado`, 'info');
+                localStorage.setItem('rifa_backup_data', JSON.stringify(soldTickets));
+                showToast(`Liberado`, 'info');
             }
         }
 
@@ -541,26 +561,52 @@
 
             if (saveTicketBtn) saveTicketBtn.addEventListener('click', handleSaveTicket);
             if (releaseTicketBtn) releaseTicketBtn.addEventListener('click', handleReleaseTicket);
+
+            // Botón de configuración de Firebase
+            const configModal = document.getElementById('config-modal');
+            const saveCfgBtn = document.getElementById('save-cfg-btn');
+            const closeCfgBtn = document.getElementById('close-cfg-btn');
+            const cfgProjectIdInput = document.getElementById('cfg-project-id');
+
+            if (saveCfgBtn && cfgProjectIdInput) {
+                cfgProjectIdInput.value = savedProjectId;
+                saveCfgBtn.addEventListener('click', () => {
+                    const val = cfgProjectIdInput.value.trim();
+                    if (val) {
+                        localStorage.setItem('rifa_firebase_project_id', val);
+                        savedProjectId = val;
+                        configModal.classList.add('hidden');
+                        configModal.classList.remove('flex');
+                        initFirebase();
+                    }
+                });
+            }
+            if (closeCfgBtn && configModal) {
+                closeCfgBtn.addEventListener('click', () => {
+                    configModal.classList.add('hidden');
+                    configModal.classList.remove('flex');
+                });
+            }
         }
 
         async function initFirebase() {
             try {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDummyKeyForStaticHosting",
+                    authDomain: `${savedProjectId}.firebaseapp.com`,
+                    projectId: savedProjectId
+                };
+
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                currentUser = auth.currentUser;
+                await signInAnonymously(auth);
 
                 if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
-                if (connectionStatus) connectionStatus.textContent = 'Google Firebase Firestore Activo';
+                if (connectionStatus) connectionStatus.textContent = `Conectado a Google Cloud (${savedProjectId})`;
 
-                // Escuchar cambios en tiempo real desde la base de datos de Google
-                const ticketsCol = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
+                const ticketsCol = collection(db, 'artifacts', savedProjectId, 'public', 'data', 'tickets');
                 onSnapshot(ticketsCol, (snapshot) => {
                     const newTickets = {};
                     snapshot.forEach(docSnap => {
@@ -569,21 +615,20 @@
                     soldTickets = newTickets;
                     updateAllVisuals();
                 }, (error) => {
-                    // Fallback a almacenamiento local cruzado si las reglas de Firestore restringen acceso anónimo directo
-                    const localBackup = localStorage.getItem('rifa_local_backup');
-                    if (localBackup) {
-                        soldTickets = JSON.parse(localBackup);
+                    const backup = localStorage.getItem('rifa_backup_data');
+                    if (backup) {
+                        soldTickets = JSON.parse(backup);
                         updateAllVisuals();
                     }
                 });
 
             } catch (err) {
-                if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
-                if (connectionStatus) connectionStatus.textContent = 'Modo Red Local Sincronizado';
+                if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+                if (connectionStatus) connectionStatus.textContent = 'Error de conexión con Google Cloud';
                 
-                const localBackup = localStorage.getItem('rifa_local_backup');
-                if (localBackup) {
-                    soldTickets = JSON.parse(localBackup);
+                const backup = localStorage.getItem('rifa_backup_data');
+                if (backup) {
+                    soldTickets = JSON.parse(backup);
                     updateAllVisuals();
                 }
             }
@@ -614,14 +659,6 @@
             buildGrid();
             setupEventListeners();
             initFirebase();
-
-            // Sincronización adicional entre pestañas/dispositivos locales
-            window.addEventListener('storage', (e) => {
-                if (e.key === 'rifa_local_backup' && e.newValue) {
-                    soldTickets = JSON.parse(e.newValue);
-                    updateAllVisuals();
-                }
-            });
         });
     </script>
 </body>
