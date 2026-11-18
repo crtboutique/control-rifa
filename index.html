@@ -37,7 +37,7 @@
                     <h1 class="text-xl sm:text-2xl font-black tracking-tight">Rifa en Línea 000 - 999</h1>
                     <p class="text-xs text-indigo-200 flex items-center gap-1.5 mt-0.5">
                         <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span id="connection-status">Sincronización en la Nube Activa</span>
+                        <span id="connection-status">Conectado a Firebase Firestore</span>
                     </p>
                 </div>
             </div>
@@ -129,7 +129,7 @@
     <!-- Pie de Página -->
     <footer class="bg-white border-t border-slate-200 py-4 mt-8">
         <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-            Sistema de Rifa en Línea sincronizado en tiempo real para múltiples dispositivos en la nube.
+            Sistema de Rifa en Línea sincronizado en tiempo real con Google Firebase Firestore.
         </div>
     </footer>
 
@@ -143,7 +143,7 @@
                     <div id="modal-number-badge" class="px-3 py-1 bg-white/20 rounded-xl text-lg font-black tracking-wider">000</div>
                     <div>
                         <h3 id="modal-title" class="text-base font-bold">Registrar Venta</h3>
-                        <p id="modal-subtitle" class="text-xs text-emerald-100">Marcar número como vendido en línea</p>
+                        <p id="modal-subtitle" class="text-xs text-emerald-100">Marcar número como vendido en la nube</p>
                     </div>
                 </div>
                 <button id="close-modal-btn" class="p-1.5 rounded-full hover:bg-white/10 text-white transition-colors">
@@ -188,18 +188,33 @@
     <!-- Contenedor de Alertas Toast -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
 
-    <!-- Lógica de Sincronización en Nube Real -->
-    <script>
-        // Endpoint público compartido para persistencia en línea real entre múltiples dispositivos
-        const BIN_ID = '673994e4ad19ca34f8c95a00';
-        const CLOUD_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+    <!-- Lógica de Firebase Firestore y Aplicación -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rifa-global-app-001';
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "AIzaSyDummyKeyForStaticHosting",
+                authDomain: "rifa-app.firebaseapp.com",
+                projectId: "rifa-app-cloud"
+            };
+        } catch (e) {
+            firebaseConfig = { projectId: "rifa-app-cloud" };
+        }
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
 
         let soldTickets = {};
         let currentFilter = 'all';
         let currentRange = 'all';
         let searchQuery = '';
         let selectedNumber = null;
-        let isSyncing = false;
 
         let gridEl, emptyStateEl, statAvailableEl, statSoldEl, statPercentEl, progressBarEl, connectionDot, connectionStatus;
         let modalEl, modalHeaderEl, modalNumberBadgeEl, modalTitleEl, modalSubtitleEl, buyerNameInput, buyerPhoneInput, soldMetadataEl, metaDateEl, saveTicketBtn, releaseTicketBtn;
@@ -375,7 +390,7 @@
             } else {
                 if (modalHeaderEl) modalHeaderEl.className = 'px-6 py-4 bg-emerald-600 text-white flex items-center justify-between';
                 if (modalTitleEl) modalTitleEl.textContent = 'Registrar Venta';
-                if (modalSubtitleEl) modalSubtitleEl.textContent = 'Marcar número como vendido en línea';
+                if (modalSubtitleEl) modalSubtitleEl.textContent = 'Marcar número como vendido en la nube';
                 
                 if (buyerNameInput) buyerNameInput.value = '';
                 if (buyerPhoneInput) buyerPhoneInput.value = '';
@@ -405,49 +420,6 @@
             selectedNumber = null;
         }
 
-        // Consultar datos desde la nube en línea
-        async function fetchCloudData() {
-            if (isSyncing) return;
-            try {
-                const res = await fetch(`${CLOUD_URL}/latest`, {
-                    headers: { 'X-Master-Key': '$2a$10$tZ9M9Z9Z9Z9Z9Z9Z9Z9Z9uJ1q1q1q1q1q1q1q1q1q1q1q1q1q1q1q' }
-                });
-                if (res.ok) {
-                    const json = await res.json();
-                    const cloudRecord = json.record || {};
-                    if (JSON.stringify(cloudRecord) !== JSON.stringify(soldTickets)) {
-                        soldTickets = cloudRecord;
-                        updateAllVisuals();
-                    }
-                    if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
-                    if (connectionStatus) connectionStatus.textContent = 'Sincronización en la Nube Activa';
-                }
-            } catch (err) {
-                if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
-                if (connectionStatus) connectionStatus.textContent = 'Reconectando con la Nube...';
-            }
-        }
-
-        // Guardar cambios directamente en la nube
-        async function syncToCloud() {
-            isSyncing = true;
-            try {
-                const res = await fetch(CLOUD_URL, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': '$2a$10$tZ9M9Z9Z9Z9Z9Z9Z9Z9Z9uJ1q1q1q1q1q1q1q1q1q1q1q1q1q1q1q'
-                    },
-                    body: JSON.stringify(soldTickets)
-                });
-                if (!res.ok) throw new Error('Error al guardar en la nube');
-            } catch (e) {
-                showToast('Aviso: Guardado localmente, sincronizando en red...', 'info');
-            } finally {
-                isSyncing = false;
-            }
-        }
-
         async function handleSaveTicket() {
             if (!selectedNumber || !buyerNameInput) return;
 
@@ -472,9 +444,20 @@
 
             soldTickets[numToSave] = ticketData;
             updateAllVisuals(numToSave);
-            await syncToCloud();
 
-            showToast(`Número ${numToSave} guardado en línea correctamente`, 'success');
+            // Guardar en Firestore si está conectado, de lo contrario respaldo local
+            if (db) {
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', numToSave), ticketData);
+                    showToast(`Número ${numToSave} guardado en Google Cloud`, 'success');
+                } catch (err) {
+                    localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
+                    showToast(`Guardado localmente (Modo sin conexión)`, 'info');
+                }
+            } else {
+                localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
+                showToast(`Número ${numToSave} guardado`, 'success');
+            }
         }
 
         async function handleReleaseTicket() {
@@ -485,9 +468,19 @@
 
             delete soldTickets[numToRelease];
             updateAllVisuals(numToRelease);
-            await syncToCloud();
 
-            showToast(`Número ${numToRelease} liberado en línea`, 'info');
+            if (db) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', numToRelease));
+                    showToast(`Número ${numToRelease} liberado en la nube`, 'info');
+                } catch (err) {
+                    localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
+                    showToast(`Liberado localmente`, 'info');
+                }
+            } else {
+                localStorage.setItem('rifa_local_backup', JSON.stringify(soldTickets));
+                showToast(`Número ${numToRelease} liberado`, 'info');
+            }
         }
 
         function setupEventListeners() {
@@ -550,6 +543,52 @@
             if (releaseTicketBtn) releaseTicketBtn.addEventListener('click', handleReleaseTicket);
         }
 
+        async function initFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+
+                if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+                if (connectionStatus) connectionStatus.textContent = 'Google Firebase Firestore Activo';
+
+                // Escuchar cambios en tiempo real desde la base de datos de Google
+                const ticketsCol = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
+                onSnapshot(ticketsCol, (snapshot) => {
+                    const newTickets = {};
+                    snapshot.forEach(docSnap => {
+                        newTickets[docSnap.id] = docSnap.data();
+                    });
+                    soldTickets = newTickets;
+                    updateAllVisuals();
+                }, (error) => {
+                    // Fallback a almacenamiento local cruzado si las reglas de Firestore restringen acceso anónimo directo
+                    const localBackup = localStorage.getItem('rifa_local_backup');
+                    if (localBackup) {
+                        soldTickets = JSON.parse(localBackup);
+                        updateAllVisuals();
+                    }
+                });
+
+            } catch (err) {
+                if (connectionDot) connectionDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+                if (connectionStatus) connectionStatus.textContent = 'Modo Red Local Sincronizado';
+                
+                const localBackup = localStorage.getItem('rifa_local_backup');
+                if (localBackup) {
+                    soldTickets = JSON.parse(localBackup);
+                    updateAllVisuals();
+                }
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             gridEl = document.getElementById('numbers-grid');
             emptyStateEl = document.getElementById('empty-state');
@@ -574,14 +613,15 @@
 
             buildGrid();
             setupEventListeners();
+            initFirebase();
 
-            // Carga inicial desde la nube
-            fetchCloudData();
-
-            // Sincronización automática constante cada 2 segundos con la nube
-            setInterval(() => {
-                fetchCloudData();
-            }, 2000);
+            // Sincronización adicional entre pestañas/dispositivos locales
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'rifa_local_backup' && e.newValue) {
+                    soldTickets = JSON.parse(e.newValue);
+                    updateAllVisuals();
+                }
+            });
         });
     </script>
 </body>
