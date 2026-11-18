@@ -190,12 +190,12 @@
                         <p id="modal-subtitle" class="text-xs text-white/80">Disponible para asignar</p>
                     </div>
                 </div>
-                <button id="close-modal-btn" class="p-1.5 rounded-lg hover:bg-white/20 transition">
+                <button id="close-modal-btn" type="button" class="p-1.5 rounded-lg hover:bg-white/20 transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
-            <form id="ticket-form" class="p-6 space-y-4">
+            <div id="ticket-form" class="p-6 space-y-4">
                 <div>
                     <label for="buyer-name" class="block text-sm font-semibold text-slate-700 mb-1">
                         Nombre del Comprador <span class="text-rose-500">*</span>
@@ -203,7 +203,6 @@
                     <input 
                         type="text" 
                         id="buyer-name" 
-                        required
                         placeholder="Ej. María González" 
                         class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                     >
@@ -228,9 +227,9 @@
 
                 <div class="pt-2 flex flex-col sm:flex-row gap-2.5">
                     <button 
-                        type="submit" 
+                        type="button" 
                         id="save-ticket-btn"
-                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-indigo-200 transition flex items-center justify-center gap-2"
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md shadow-indigo-200 transition flex items-center justify-center gap-2 cursor-pointer"
                     >
                         <i data-lucide="check-circle" class="w-4 h-4"></i>
                         <span>Marcar como Vendido</span>
@@ -239,13 +238,13 @@
                     <button 
                         type="button" 
                         id="release-ticket-btn"
-                        class="hidden bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2"
+                        class="hidden bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-semibold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
                     >
                         <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                         <span>Liberar</span>
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -301,7 +300,6 @@
         const modalNumberBadgeEl = document.getElementById('modal-number-badge');
         const modalTitleEl = document.getElementById('modal-title');
         const modalSubtitleEl = document.getElementById('modal-subtitle');
-        const ticketFormEl = document.getElementById('ticket-form');
         const buyerNameInput = document.getElementById('buyer-name');
         const buyerPhoneInput = document.getElementById('buyer-phone');
         const soldMetadataEl = document.getElementById('sold-metadata');
@@ -492,8 +490,7 @@
             selectedNumber = null;
         }
 
-        async function handleSaveTicket(e) {
-            e.preventDefault();
+        async function handleSaveTicket() {
             if (!selectedNumber) return;
 
             const buyer = buyerNameInput.value.trim();
@@ -501,11 +498,12 @@
 
             if (!buyer) {
                 showToast('Por favor ingresa el nombre del comprador.', 'error');
+                buyerNameInput.focus();
                 return;
             }
 
             const numToSave = selectedNumber;
-            closeTicketLinkOrModal();
+            closeTicketModal();
 
             const ticketData = {
                 number: numToSave,
@@ -530,17 +528,11 @@
             }
         }
 
-        function closeTicketLinkOrModal() {
-            modalEl.classList.add('hidden');
-            modalEl.classList.remove('flex');
-            selectedNumber = null;
-        }
-
         async function handleReleaseTicket() {
             if (!selectedNumber) return;
 
             const numToRelease = selectedNumber;
-            closeTicketLinkOrModal();
+            closeTicketModal();
 
             delete soldTickets[numToRelease];
             updateTicketVisual(numToRelease, true);
@@ -659,7 +651,7 @@
                 }
             });
 
-            ticketFormEl.addEventListener('submit', handleSaveTicket);
+            saveTicketBtn.addEventListener('click', handleSaveTicket);
             releaseTicketBtn.addEventListener('click', handleReleaseTicket);
         }
 
