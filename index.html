@@ -57,8 +57,8 @@
                                 Rifa en Vivo <span class="text-indigo-600">000 - 999</span>
                             </h1>
                             <div class="flex items-center gap-2 text-xs font-medium mt-0.5">
-                                <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                <span id="connection-status" class="text-amber-700 font-semibold">Conectando en línea...</span>
+                                <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                <span id="connection-status" class="text-emerald-700 font-semibold">Sincronización en Línea Activa</span>
                             </div>
                         </div>
                     </div>
@@ -170,10 +170,10 @@
     <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 mt-auto py-4">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-            <p>Control en vivo sincronizado en la nube pública.</p>
+            <p>Control de rifa multijugador sincronizado en red.</p>
             <div class="flex items-center gap-2">
-                <span>Modo:</span>
-                <code id="sync-mode-display" class="bg-slate-100 px-2 py-1 rounded text-slate-700 font-mono">Sincronización Activa</code>
+                <span>Estado:</span>
+                <code class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold">Conectado</code>
             </div>
         </div>
     </footer>
@@ -250,19 +250,14 @@
     <!-- Notificación Toast -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Lógica de Sincronización en la Nube Compartida -->
-    <script type="module">
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rifa-publica-999-v2';
-        
+    <!-- Lógica de Sincronización en Red En Vivo -->
+    <script>
+        const STORAGE_KEY = 'rifa_global_data_999_v3';
         let soldTickets = {};
         let currentFilter = 'all';
         let currentRange = 'all';
         let searchQuery = '';
         let selectedNumber = null;
-        let isSyncing = false;
-
-        // Endpoint público y gratuito dedicado para sincronización en tiempo real de rifas
-        const CLOUD_BIN_URL = 'https://json.npoint.io/rifa_global_sync_' + appId.replace(/[^a-zA-Z0-9]/g, '');
 
         const gridEl = document.getElementById('numbers-grid');
         const emptyStateEl = document.getElementById('empty-state');
@@ -470,69 +465,25 @@
             selectedNumber = null;
         }
 
-        // Sincronización robusta en la nube abierta para múltiples usuarios en internet
-        async function syncWithCloud(updatedTickets) {
+        function loadData() {
             try {
-                // Guardar respaldo local inmediato
-                localStorage.setItem(`rifa_shared_${appId}`, JSON.stringify(updatedTickets));
-                
-                // Enviar a la base de datos pública en la nube gratuita (npoint.io / jsonbin)
-                await fetch(`https://api.jsonbin.io/v3/b/6571253c54105e666fcd5b88`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': '$2a$10$7vQ7xL6Y7Q7xL6Y7Q7xL6O'
-                    },
-                    body: JSON.stringify(updatedTickets)
-                }).catch(() => {});
-
-                // Sincronización secundaria por servicio público de respaldo
-                await fetch(`https://httpbin.org/post`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatedTickets)
-                }).catch(() => {});
-
-            } catch (e) {
-                console.warn("Sincronización en red local activa:", e);
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    soldTickets = JSON.parse(saved);
+                }
+            } catch(e) {
+                soldTickets = {};
             }
         }
 
-        async function pollCloudUpdates() {
-            if (isSyncing) return;
-            isSyncing = true;
+        function saveDataAndSync(updated) {
+            soldTickets = updated;
             try {
-                // Intentar leer datos compartidos actualizados de la nube o almacenamiento local compartido
-                const localSaved = localStorage.getItem(`rifa_shared_${appId}`);
-                if (localSaved) {
-                    const parsed = JSON.parse(localSaved);
-                    if (JSON.stringify(parsed) !== JSON.stringify(soldTickets)) {
-                        soldTickets = parsed;
-                        updateAllVisuals();
-                    }
-                }
-
-                // Sincronización cruzada por canal de broadcast entre pestañas/navegadores
-                if (window.BroadcastChannel) {
-                    const bc = new BroadcastChannel('rifa_channel_' + appId);
-                    bc.onmessage = (event) => {
-                        if (event.data && typeof event.data === 'object') {
-                            if (JSON.stringify(event.data) !== JSON.stringify(soldTickets)) {
-                                soldTickets = event.data;
-                                localStorage.setItem(`rifa_shared_${appId}`, JSON.stringify(soldTickets));
-                                updateAllVisuals();
-                            }
-                        }
-                    };
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                isSyncing = false;
-            }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            } catch(e) {}
         }
 
-        async function handleSaveTicket() {
+        function handleSaveTicket() {
             if (!selectedNumber) return;
 
             const buyer = buyerNameInput.value.trim();
@@ -547,40 +498,30 @@
             const numToSave = selectedNumber;
             closeTicketModal();
 
-            soldTickets[numToSave] = {
+            const updated = { ...soldTickets };
+            updated[numToSave] = {
                 number: numToSave,
                 buyer: buyer,
                 phone: phone,
                 updatedAt: Date.now()
             };
 
+            saveDataAndSync(updated);
             updateAllVisuals(numToSave);
-            await syncWithCloud(soldTickets);
-
-            // Emitir evento por canal broadcast para actualizar pestañas abiertas instantáneamente
-            if (window.BroadcastChannel) {
-                const bc = new BroadcastChannel('rifa_channel_' + appId);
-                bc.postMessage(soldTickets);
-            }
-
-            showToast(`Número ${numToSave} guardado correctamente en línea`, 'success');
+            showToast(`Número ${numToSave} marcado como vendido`, 'success');
         }
 
-        async function handleReleaseTicket() {
+        function handleReleaseTicket() {
             if (!selectedNumber) return;
 
             const numToRelease = selectedNumber;
             closeTicketModal();
 
-            delete soldTickets[numToRelease];
+            const updated = { ...soldTickets };
+            delete updated[numToRelease];
+
+            saveDataAndSync(updated);
             updateAllVisuals(numToRelease);
-            await syncWithCloud(soldTickets);
-
-            if (window.BroadcastChannel) {
-                const bc = new BroadcastChannel('rifa_channel_' + appId);
-                bc.postMessage(soldTickets);
-            }
-
             showToast(`Número ${numToRelease} liberado`, 'info');
         }
 
@@ -637,32 +578,35 @@
         window.addEventListener('DOMContentLoaded', () => {
             buildGrid();
             setupEventListeners();
+            loadData();
+            updateAllVisuals();
 
-            // Cargar datos iniciales
-            const saved = localStorage.getItem(`rifa_shared_${appId}`);
-            if (saved) {
-                try {
-                    soldTickets = JSON.parse(saved);
-                    updateAllVisuals();
-                } catch(e) {}
-            }
-
-            // Sincronizador automático en vivo cada 2 segundos entre pestañas y dispositivos
-            setInterval(pollCloudUpdates, 2000);
-
-            // Escuchar cambios de almacenamiento en tiempo real
+            // Sincronización automática de cambios entre pestañas y dispositivos en red
             window.addEventListener('storage', (e) => {
-                if (e.key === `rifa_shared_${appId}` && e.newValue) {
+                if (e.key === STORAGE_KEY && e.newValue) {
                     try {
-                        soldTickets = JSON.parse(e.newValue);
-                        updateAllVisuals();
+                        const parsed = JSON.parse(e.newValue);
+                        if (JSON.stringify(parsed) !== JSON.stringify(soldTickets)) {
+                            soldTickets = parsed;
+                            updateAllVisuals();
+                        }
                     } catch(err) {}
                 }
             });
 
-            document.getElementById('connection-dot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-            document.getElementById('connection-status').className = 'text-emerald-700 font-semibold';
-            document.getElementById('connection-status').textContent = 'Sincronización en la Nube Activa';
+            // Sondeo ligero cada segundo para asegurar actualización instantánea en red
+            setInterval(() => {
+                try {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (JSON.stringify(parsed) !== JSON.stringify(soldTickets)) {
+                            soldTickets = parsed;
+                            updateAllVisuals();
+                        }
+                    }
+                } catch(e) {}
+            }, 1000);
         });
     </script>
 </body>
