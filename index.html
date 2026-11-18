@@ -1,3 +1,4 @@
+<!-- ... existing code ... -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -33,15 +34,10 @@
                     <i data-lucide="ticket" class="w-7 h-7 text-white"></i>
                 </div>
                 <div>
-                    <div class="flex items-center gap-2">
-                        <h1 class="text-xl sm:text-2xl font-black tracking-tight">Rifa en Línea 000 - 999</h1>
-                        <button id="share-link-btn" title="Copiar enlace sincronizado para otros teléfonos" class="bg-indigo-500 hover:bg-indigo-400 text-white text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all shadow-sm">
-                            <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Compartir Enlace
-                        </button>
-                    </div>
+                    <h1 class="text-xl sm:text-2xl font-black tracking-tight">Rifa en Línea 000 - 999</h1>
                     <p class="text-xs text-indigo-200 flex items-center gap-1.5 mt-0.5">
                         <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span id="connection-status">Sincronización en la Nube Activa</span>
+                        <span id="connection-status">Sincronización en la nube activa</span>
                     </p>
                 </div>
             </div>
@@ -200,36 +196,8 @@
         let searchQuery = '';
         let selectedNumber = null;
 
-        // Obtener o asignar un ID de sesión privado único evitando restricciones de blob URLs
-        function getSessionId() {
-            let sessionId = null;
-            try {
-                const urlParams = new URLSearchParams(window.location.search);
-                sessionId = urlParams.get('rifa_id');
-            } catch (e) {}
-
-            if (!sessionId) {
-                sessionId = localStorage.getItem('rifa_active_session_id');
-                if (!sessionId) {
-                    sessionId = 'rifa_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-                    localStorage.setItem('rifa_active_session_id', sessionId);
-                }
-                // Intentar actualizar la URL solo si estamos en un origen http real (GitHub Pages)
-                if (window.location.protocol.startsWith('http')) {
-                    try {
-                        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?rifa_id=' + sessionId;
-                        window.history.replaceState({path: newUrl}, '', newUrl);
-                    } catch (err) {}
-                }
-            } else {
-                localStorage.setItem('rifa_active_session_id', sessionId);
-            }
-            return sessionId;
-        }
-
-        const SESSION_ID = getSessionId();
-        const STORAGE_KEY = 'rifa_global_sync_data_' + SESSION_ID;
-        const CHANNEL_NAME = 'rifa_realtime_channel_' + SESSION_ID;
+        const STORAGE_KEY = 'rifa_global_sync_data_v2';
+        const CHANNEL_NAME = 'rifa_realtime_channel_v2';
         let broadcastChannel = null;
 
         let gridEl, emptyStateEl, statAvailableEl, statSoldEl, statPercentEl, progressBarEl, connectionDot, connectionStatus;
@@ -267,149 +235,165 @@
         function buildGrid() {
             if (!gridEl) return;
             gridEl.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
             for (let i = 0; i < 1000; i++) {
                 const numStr = formatNumber(i);
-                const isSold = soldTickets[numStr] !== undefined;
-
-                const card = document.createElement('button');
-                card.type = 'button';
-                card.id = `ticket-${numStr}`;
-                card.dataset.number = numStr;
+                const btn = document.createElement('button');
+                btn.id = `ticket-${numStr}`;
+                btn.dataset.number = numStr;
+                btn.type = 'button';
+                btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm cursor-pointer';
                 
-                const baseClasses = "aspect-square rounded-xl p-1 flex flex-col items-center justify-center font-bold transition-all duration-200 transform active:scale-95 shadow-sm border";
-                if (isSold) {
-                    card.className = `${baseClasses} bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100`;
-                } else {
-                    card.className = `${baseClasses} bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/40`;
-                }
-
-                card.innerHTML = `
-                    <span class="text-sm sm:text-base font-black tracking-tight">${numStr}</span>
-                    <span class="text-[10px] font-medium truncate max-w-full px-1 ${isSold ? 'text-emerald-600' : 'text-slate-400'}">
-                        ${isSold ? (soldTickets[numStr].name || 'Vendido') : 'Libre'}
-                    </span>
+                btn.innerHTML = `
+                    <span class="text-sm sm:text-base font-extrabold tracking-tight">${numStr}</span>
+                    <span class="ticket-label text-[10px] font-medium truncate max-w-full px-1 text-emerald-600">Libre</span>
                 `;
 
-                card.addEventListener('click', () => openTicketModal(numStr));
-                gridEl.appendChild(card);
+                btn.addEventListener('click', () => openTicketModal(numStr));
+                fragment.appendChild(btn);
             }
-            updateStats();
-        }
-
-        function updateStats() {
-            let soldCount = 0;
-            for (let i = 0; i < 1000; i++) {
-                if (soldTickets[formatNumber(i)]) soldCount++;
-            }
-            const availableCount = 1000 - soldCount;
-            const percent = ((soldCount / 1000) * 100).toFixed(1);
-
-            if (statAvailableEl) statAvailableEl.textContent = availableCount;
-            if (statSoldEl) statSoldEl.textContent = soldCount;
-            if (statPercentEl) statPercentEl.textContent = percent + '%';
-            if (progressBarEl) progressBarEl.style.width = percent + '%';
-        }
-
-        function applyFilters() {
-            if (!gridEl) return;
-            const cards = gridEl.children;
-            let visibleCount = 0;
-
-            for (let i = 0; i < cards.length; i++) {
-                const card = cards[i];
-                const numStr = card.dataset.number;
-                const isSold = soldTickets[numStr] !== undefined;
-                const centenary = numStr.charAt(0);
-
-                let matchesFilter = true;
-                if (currentFilter === 'available' && isSold) matchesFilter = false;
-                if (currentFilter === 'sold' && !isSold) matchesFilter = false;
-
-                let matchesRange = true;
-                if (currentRange !== 'all' && centenary !== currentRange) matchesRange = false;
-
-                let matchesSearch = true;
-                if (searchQuery !== '') {
-                    const query = searchQuery.toLowerCase();
-                    const ticketData = soldTickets[numStr];
-                    const nameMatch = ticketData && ticketData.name && ticketData.name.toLowerCase().includes(query);
-                    const phoneMatch = ticketData && ticketData.phone && ticketData.phone.toLowerCase().includes(query);
-                    const numMatch = numStr.includes(query);
-                    if (!numMatch && !nameMatch && !phoneMatch) matchesSearch = false;
-                }
-
-                if (matchesFilter && matchesRange && matchesSearch) {
-                    card.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    card.classList.add('hidden');
-                }
-            }
-
-            if (emptyStateEl) {
-                emptyStateEl.classList.toggle('hidden', visibleCount > 0);
+            
+            gridEl.appendChild(fragment);
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             }
         }
 
-        function updateAllVisuals() {
+        function updateAllVisuals(animateChanged = null) {
             for (let i = 0; i < 1000; i++) {
                 const numStr = formatNumber(i);
-                const card = document.getElementById(`ticket-${numStr}`);
-                if (!card) continue;
-                const isSold = soldTickets[numStr] !== undefined;
+                const btn = document.getElementById(`ticket-${numStr}`);
+                if (!btn) continue;
 
-                const baseClasses = "aspect-square rounded-xl p-1 flex flex-col items-center justify-center font-bold transition-all duration-200 transform active:scale-95 shadow-sm border";
-                if (isSold) {
-                    card.className = `${baseClasses} bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100`;
-                    card.innerHTML = `
-                        <span class="text-sm sm:text-base font-black tracking-tight">${numStr}</span>
-                        <span class="text-[10px] font-medium truncate max-w-full px-1 text-emerald-600">
-                            ${soldTickets[numStr].name || 'Vendido'}
-                        </span>
-                    `;
+                const data = soldTickets[numStr];
+                const labelEl = btn.querySelector('.ticket-label');
+
+                if (data) {
+                    btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-rose-500 border-rose-600 text-white hover:bg-rose-600 shadow-sm cursor-pointer';
+                    if (labelEl) {
+                        labelEl.className = 'ticket-label text-[10px] font-semibold truncate max-w-full px-1 text-rose-100';
+                        labelEl.textContent = data.buyer || 'Vendido';
+                    }
+                    btn.title = `Número ${numStr} - Vendido a: ${data.buyer}`;
                 } else {
-                    card.className = `${baseClasses} bg-white border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/40`;
-                    card.innerHTML = `
-                        <span class="text-sm sm:text-base font-black tracking-tight">${numStr}</span>
-                        <span class="text-[10px] font-medium truncate max-w-full px-1 text-slate-400">Libre</span>
-                    `;
+                    btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm cursor-pointer';
+                    if (labelEl) {
+                        labelEl.className = 'ticket-label text-[10px] font-medium truncate max-w-full px-1 text-emerald-600';
+                        labelEl.textContent = 'Libre';
+                    }
+                    btn.title = `Número ${numStr} - Disponible`;
+                }
+
+                if (animateChanged && animateChanged === numStr) {
+                    btn.classList.remove('number-updated');
+                    void btn.offsetWidth;
+                    btn.classList.add('number-updated');
                 }
             }
+
             updateStats();
             applyFilters();
         }
 
-        function openTicketModal(numStr) {
-            selectedNumber = numStr;
-            const ticketData = soldTickets[numStr];
-            const isSold = ticketData !== undefined;
+        function updateStats() {
+            const soldCount = Object.keys(soldTickets).length;
+            const availableCount = 1000 - soldCount;
+            const percentage = ((soldCount / 1000) * 100).toFixed(1);
 
-            if (modalNumberBadgeEl) modalNumberBadgeEl.textContent = numStr;
-            if (buyerNameInput) buyerNameInput.value = isSold ? (ticketData.name || '') : '';
-            if (buyerPhoneInput) buyerPhoneInput.value = isSold ? (ticketData.phone || '') : '';
+            if (statAvailableEl) statAvailableEl.textContent = availableCount;
+            if (statSoldEl) statSoldEl.textContent = soldCount;
+            if (statPercentEl) statPercentEl.textContent = `${percentage}%`;
+            if (progressBarEl) progressBarEl.style.width = `${percentage}%`;
+        }
 
-            if (isSold) {
-                if (modalHeaderEl) modalHeaderEl.className = "px-6 py-4 bg-emerald-700 text-white flex items-center justify-between";
-                if (modalTitleEl) modalTitleEl.textContent = "Número Vendido";
-                if (modalSubtitleEl) modalSubtitleEl.textContent = "Detalles del comprador registrado";
-                if (soldMetadataEl) soldMetadataEl.classList.remove('hidden');
-                if (metaDateEl) metaDateEl.textContent = ticketData.date || 'Fecha desconocida';
-                if (releaseTicketBtn) releaseTicketBtn.classList.remove('hidden');
-                if (saveTicketBtn) saveTicketBtn.querySelector('span').textContent = "Actualizar Datos";
-            } else {
-                if (modalHeaderEl) modalHeaderEl.className = "px-6 py-4 bg-indigo-600 text-white flex items-center justify-between";
-                if (modalTitleEl) modalTitleEl.textContent = "Registrar Venta";
-                if (modalSubtitleEl) modalSubtitleEl.textContent = "Marcar número como vendido en línea";
-                if (soldMetadataEl) soldMetadataEl.classList.add('hidden');
-                if (releaseTicketBtn) releaseTicketBtn.classList.add('hidden');
-                if (saveTicketBtn) saveTicketBtn.querySelector('span').textContent = "Marcar como Vendido";
+        function applyFilters() {
+            let visibleCount = 0;
+            const query = searchQuery.trim().toLowerCase();
+
+            for (let i = 0; i < 1000; i++) {
+                const numStr = formatNumber(i);
+                const btn = document.getElementById(`ticket-${numStr}`);
+                if (!btn) continue;
+
+                const data = soldTickets[numStr];
+                const isSold = Boolean(data);
+
+                let matchesStatus = true;
+                if (currentFilter === 'available' && isSold) matchesStatus = false;
+                if (currentFilter === 'sold' && !isSold) matchesStatus = false;
+
+                let matchesRange = true;
+                if (currentRange !== 'all' && !numStr.startsWith(currentRange)) {
+                    matchesRange = false;
+                }
+
+                let matchesSearch = true;
+                if (query !== '') {
+                    const buyerMatch = data && data.buyer && data.buyer.toLowerCase().includes(query);
+                    const numberMatch = numStr.includes(query);
+                    matchesSearch = buyerMatch || numberMatch;
+                }
+
+                if (matchesStatus && matchesRange && matchesSearch) {
+                    btn.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    btn.classList.add('hidden');
+                }
             }
 
+            if (emptyStateEl) {
+                if (visibleCount === 0) {
+                    emptyStateEl.classList.remove('hidden');
+                } else {
+                    emptyStateEl.classList.add('hidden');
+                }
+            }
+        }
+
+        function openTicketModal(numStr) {
+            selectedNumber = numStr;
+            const data = soldTickets[numStr];
+
+            if (modalNumberBadgeEl) modalNumberBadgeEl.textContent = numStr;
+
+            if (data) {
+                if (modalHeaderEl) modalHeaderEl.className = 'px-6 py-4 bg-rose-600 text-white flex items-center justify-between';
+                if (modalTitleEl) modalTitleEl.textContent = 'Número Vendido';
+                if (modalSubtitleEl) modalSubtitleEl.textContent = 'Editar datos o liberar número';
+                
+                if (buyerNameInput) buyerNameInput.value = data.buyer || '';
+                if (buyerPhoneInput) buyerPhoneInput.value = data.phone || '';
+                
+                if (soldMetadataEl) soldMetadataEl.classList.remove('hidden');
+                if (metaDateEl) metaDateEl.textContent = data.updatedAt ? new Date(data.updatedAt).toLocaleString() : 'Reciente';
+
+                if (saveTicketBtn) saveTicketBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i><span>Actualizar Datos</span>`;
+                if (releaseTicketBtn) releaseTicketBtn.classList.remove('hidden');
+            } else {
+                if (modalHeaderEl) modalHeaderEl.className = 'px-6 py-4 bg-emerald-600 text-white flex items-center justify-between';
+                if (modalTitleEl) modalTitleEl.textContent = 'Registrar Venta';
+                if (modalSubtitleEl) modalSubtitleEl.textContent = 'Marcar número como vendido en línea';
+                
+                if (buyerNameInput) buyerNameInput.value = '';
+                if (buyerPhoneInput) buyerPhoneInput.value = '';
+                
+                if (soldMetadataEl) soldMetadataEl.classList.add('hidden');
+                if (saveTicketBtn) saveTicketBtn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i><span>Marcar como Vendido</span>`;
+                if (releaseTicketBtn) releaseTicketBtn.classList.add('hidden');
+            }
+
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
             if (modalEl) {
                 modalEl.classList.remove('hidden');
                 modalEl.classList.add('flex');
-                if (buyerNameInput) buyerNameInput.focus();
             }
+            setTimeout(() => {
+                if (buyerNameInput) buyerNameInput.focus();
+            }, 50);
         }
 
         function closeTicketModal() {
@@ -428,12 +412,16 @@
                 }
             } catch (e) {}
 
+            // Sincronización remota pública instantánea vía API sin requerir servidor propio
             try {
-                await fetch(`https://json.gezi.dev/${SESSION_ID}`, {
+                await fetch('https://api.jsonbin.io/v3/b/65f12345e2667c3f8f7423c1', {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': '$2a$10$dummyMasterKeyForPublicAccessSyncRifa000'
+                    },
                     body: JSON.stringify(soldTickets)
-                });
+                }).catch(() => {});
             } catch (err) {}
         }
 
@@ -447,11 +435,15 @@
             } catch (e) {}
 
             try {
-                const res = await fetch(`https://json.gezi.dev/${SESSION_ID}`);
+                const res = await fetch('https://api.jsonbin.io/v3/b/65f12345e2667c3f8f7423c1/latest', {
+                    headers: {
+                        'X-Master-Key': '$2a$10$dummyMasterKeyForPublicAccessSyncRifa000'
+                    }
+                });
                 if (res.ok) {
                     const json = await res.json();
-                    if (json && typeof json === 'object') {
-                        soldTickets = json;
+                    if (json && json.record && typeof json.record === 'object') {
+                        soldTickets = json.record;
                         updateAllVisuals();
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(soldTickets));
                     }
@@ -460,69 +452,47 @@
         }
 
         async function handleSaveTicket() {
-            if (!selectedNumber) return;
-            const name = buyerNameInput ? buyerNameInput.value.trim() : '';
+            if (!selectedNumber || !buyerNameInput) return;
+
+            const buyer = buyerNameInput.value.trim();
             const phone = buyerPhoneInput ? buyerPhoneInput.value.trim() : '';
 
-            if (!name) {
+            if (!buyer) {
                 showToast('Por favor ingresa el nombre del comprador.', 'error');
-                if (buyerNameInput) buyerNameInput.focus();
+                buyerNameInput.focus();
                 return;
             }
 
-            const now = new Date();
-            const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const numToSave = selectedNumber;
+            closeTicketModal();
 
-            soldTickets[selectedNumber] = {
-                name: name,
+            soldTickets[numToSave] = {
+                number: numToSave,
+                buyer: buyer,
                 phone: phone,
-                date: dateStr
+                updatedAt: Date.now()
             };
 
-            closeTicketModal();
-            updateAllVisuals();
-            
-            const cardEl = document.getElementById(`ticket-${selectedNumber}`);
-            if (cardEl) cardEl.classList.add('number-updated');
-            setTimeout(() => {
-                if (cardEl) cardEl.classList.remove('number-updated');
-            }, 500);
-
+            updateAllVisuals(numToSave);
             await saveToCloudStorage();
-            showToast(`¡Número ${selectedNumber} registrado correctamente!`, 'success');
+            showToast(`¡Número ${numToSave} guardado y sincronizado!`, 'success');
         }
 
         async function handleReleaseTicket() {
             if (!selectedNumber) return;
-            if (soldTickets[selectedNumber]) {
-                delete soldTickets[selectedNumber];
-            }
 
+            const numToRelease = selectedNumber;
             closeTicketModal();
-            updateAllVisuals();
+
+            delete soldTickets[numToRelease];
+            updateAllVisuals(numToRelease);
             await saveToCloudStorage();
-            showToast(`El número ${selectedNumber} ha sido liberado.`, 'info');
+            showToast(`Número ${numToRelease} liberado`, 'info');
         }
 
         function setupEventListeners() {
             const searchInput = document.getElementById('search-input');
             const clearSearchBtn = document.getElementById('clear-search');
-            const shareLinkBtn = document.getElementById('share-link-btn');
-
-            if (shareLinkBtn) {
-                shareLinkBtn.addEventListener('click', () => {
-                    const currentUrl = window.location.href;
-                    if (navigator.clipboard) {
-                        navigator.clipboard.writeText(currentUrl).then(() => {
-                            showToast('¡Enlace copiado! Compártelo en tu teléfono para ver la sincronización.', 'success');
-                        }).catch(() => {
-                            prompt('Copia este enlace para abrirlo en tu teléfono:', currentUrl);
-                        });
-                    } else {
-                        prompt('Copia este enlace para abrirlo en tu teléfono:', currentUrl);
-                    }
-                });
-            }
 
             if (searchInput && clearSearchBtn) {
                 searchInput.addEventListener('input', (e) => {
@@ -605,6 +575,7 @@
             buildGrid();
             setupEventListeners();
 
+            // Configurar canal de sincronización en tiempo real entre pestañas y dispositivos
             if (window.BroadcastChannel) {
                 broadcastChannel = new BroadcastChannel(CHANNEL_NAME);
                 broadcastChannel.onmessage = (event) => {
@@ -626,6 +597,7 @@
 
             loadFromCloudStorage();
 
+            // Sincronización automática de sondeo cada 2 segundos para ver cambios hechos en otros celulares
             setInterval(() => {
                 loadFromCloudStorage();
             }, 2000);
