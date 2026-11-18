@@ -15,7 +15,6 @@
             font-family: 'Inter', sans-serif;
             background-color: #f8fafc;
         }
-        /* Personalización de la barra de desplazamiento */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -30,7 +29,6 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
-        /* Animación sutil para actualizaciones en tiempo real */
         @keyframes pulse-update {
             0% { transform: scale(1); }
             50% { transform: scale(1.12); box-shadow: 0 0 12px rgba(16, 185, 129, 0.6); }
@@ -112,7 +110,6 @@
 
             <!-- Filtros de Estado y Centenas -->
             <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                <!-- Filtro de Estado -->
                 <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
                     <button data-filter="all" class="filter-btn active px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white text-indigo-600 shadow-sm transition">
                         Todos
@@ -125,7 +122,6 @@
                     </button>
                 </div>
 
-                <!-- Selector de Rango (Centenas) para navegación rápida -->
                 <select id="range-select" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs sm:text-sm font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="all">Todos (000 - 999)</option>
                     <option value="0">000 - 099</option>
@@ -164,15 +160,14 @@
                 <p class="text-sm text-slate-500 mt-1">Intenta cambiar el filtro o el término de búsqueda.</p>
             </div>
 
-            <!-- Grid Responsivo: 5 cols en móvil pequeño, 8 en tablet, 10 en desktop -->
             <div id="numbers-grid" class="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2 sm:gap-2.5">
-                <!-- Los 1000 botones se generan dinámicamente con JS -->
+                <!-- Se genera dinámicamente -->
             </div>
         </div>
 
     </main>
 
-    <!-- Footer con ID de Sesión para colaboración -->
+    <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 mt-auto py-4">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
             <p>Sincronización en tiempo real activa. Todos los cambios son visibles al instante.</p>
@@ -183,11 +178,10 @@
         </div>
     </footer>
 
-    <!-- Modal Interactivo para Marcar/Editar/Liberar Número -->
+    <!-- Modal Interactivo -->
     <div id="ticket-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
         <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 transform transition-all">
             
-            <!-- Cabecera del Modal -->
             <div id="modal-header" class="px-6 py-4 bg-emerald-600 text-white flex items-center justify-between">
                 <div class="flex items-center gap-3">
                     <span id="modal-number-badge" class="text-2xl font-black tracking-wider bg-white/20 px-3 py-1 rounded-xl">000</span>
@@ -201,7 +195,6 @@
                 </button>
             </div>
 
-            <!-- Cuerpo del Modal -->
             <form id="ticket-form" class="p-6 space-y-4">
                 <div>
                     <label for="buyer-name" class="block text-sm font-semibold text-slate-700 mb-1">
@@ -228,13 +221,11 @@
                     >
                 </div>
 
-                <!-- Metadatos si ya está vendido -->
                 <div id="sold-metadata" class="hidden bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
                     <p><span class="font-semibold">Registrado por:</span> <span id="meta-seller" class="font-mono"></span></p>
                     <p><span class="font-semibold">Fecha/Hora:</span> <span id="meta-date"></span></p>
                 </div>
 
-                <!-- Botones de Acción -->
                 <div class="pt-2 flex flex-col sm:flex-row gap-2.5">
                     <button 
                         type="submit" 
@@ -258,37 +249,30 @@
         </div>
     </div>
 
-    <!-- Notificación Toast Flotante -->
+    <!-- Notificación Toast -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Lógica de Firebase Firestore en Tiempo Real -->
+    <!-- Firebase y Lógica -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Inicializar iconos Lucide
-        lucide.createIcons();
-
-        // Configuración global proporcionada por el entorno
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-raffle-app';
         const firebaseConfig = JSON.parse(__firebase_config);
         
-        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Estado global de la aplicación
         let currentUser = null;
-        let soldTickets = {}; // Mapa: { "000": { buyer: "...", phone: "...", updatedAt: ..., sellerId: ... } }
-        let currentFilter = 'all'; // 'all', 'available', 'sold'
-        let currentRange = 'all'; // 'all', '0'..'9'
+        let soldTickets = {};
+        let currentFilter = 'all';
+        let currentRange = 'all';
         let searchQuery = '';
         let selectedNumber = null;
         let isInitialLoad = true;
 
-        // Referencias al DOM
         const gridEl = document.getElementById('numbers-grid');
         const emptyStateEl = document.getElementById('empty-state');
         const statAvailableEl = document.getElementById('stat-available');
@@ -299,7 +283,6 @@
         const connectionStatusEl = document.getElementById('connection-status');
         const userIdDisplayEl = document.getElementById('user-id-display');
 
-        // Modal Elements
         const modalEl = document.getElementById('ticket-modal');
         const modalHeaderEl = document.getElementById('modal-header');
         const modalNumberBadgeEl = document.getElementById('modal-number-badge');
@@ -314,12 +297,10 @@
         const saveTicketBtn = document.getElementById('save-ticket-btn');
         const releaseTicketBtn = document.getElementById('release-ticket-btn');
 
-        // Formatear número a 3 dígitos (ej. 5 -> "005")
         function formatNumber(num) {
             return num.toString().padStart(3, '0');
         }
 
-        // Mostrar notificación toast no intrusiva
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -334,21 +315,18 @@
             toast.innerHTML = `<span>${message}</span>`;
             
             container.appendChild(toast);
-            
-            // Animar entrada
             requestAnimationFrame(() => {
                 toast.classList.remove('translate-y-2', 'opacity-0');
             });
 
-            // Eliminar después de 3 segundos
             setTimeout(() => {
                 toast.classList.add('opacity-0', 'translate-y-2');
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
-        // Generar la cuadrícula inicial del 000 al 999
         function buildGrid() {
+            gridEl.innerHTML = '';
             const fragment = document.createDocumentFragment();
             
             for (let i = 0; i < 1000; i++) {
@@ -369,9 +347,9 @@
             }
             
             gridEl.appendChild(fragment);
+            lucide.createIcons();
         }
 
-        // Actualizar visualmente un botón específico
         function updateTicketVisual(numStr, animate = false) {
             const btn = document.getElementById(`ticket-${numStr}`);
             if (!btn) return;
@@ -380,13 +358,11 @@
             const labelEl = btn.querySelector('.ticket-label');
 
             if (data) {
-                // Estado: VENDIDO
                 btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-rose-500 border-rose-600 text-white hover:bg-rose-600 shadow-sm';
                 labelEl.className = 'ticket-label text-[10px] font-semibold truncate max-w-full px-1 text-rose-100';
                 labelEl.textContent = data.buyer || 'Vendido';
                 btn.title = `Número ${numStr} - Vendido a: ${data.buyer}`;
             } else {
-                // Estado: DISPONIBLE
                 btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm';
                 labelEl.className = 'ticket-label text-[10px] font-medium truncate max-w-full px-1 text-emerald-600';
                 labelEl.textContent = 'Libre';
@@ -395,12 +371,11 @@
 
             if (animate) {
                 btn.classList.remove('number-updated');
-                void btn.offsetWidth; // Forzar reflow para reiniciar animación
+                void btn.offsetWidth;
                 btn.classList.add('number-updated');
             }
         }
 
-        // Actualizar contadores y barra de progreso
         function updateStats() {
             const soldCount = Object.keys(soldTickets).length;
             const availableCount = 1000 - soldCount;
@@ -412,7 +387,6 @@
             progressBarEl.style.width = `${percentage}%`;
         }
 
-        // Aplicar filtros de búsqueda, estado y rango
         function applyFilters() {
             let visibleCount = 0;
             const query = searchQuery.trim().toLowerCase();
@@ -425,18 +399,15 @@
                 const data = soldTickets[numStr];
                 const isSold = Boolean(data);
 
-                // 1. Filtro por Estado
                 let matchesStatus = true;
                 if (currentFilter === 'available' && isSold) matchesStatus = false;
                 if (currentFilter === 'sold' && !isSold) matchesStatus = false;
 
-                // 2. Filtro por Rango (Centena)
                 let matchesRange = true;
                 if (currentRange !== 'all' && !numStr.startsWith(currentRange)) {
                     matchesRange = false;
                 }
 
-                // 3. Filtro por Búsqueda (Número o Nombre del comprador)
                 let matchesSearch = true;
                 if (query !== '') {
                     const buyerMatch = data && data.buyer && data.buyer.toLowerCase().includes(query);
@@ -459,7 +430,6 @@
             }
         }
 
-        // Abrir Modal para gestionar un número
         function openTicketModal(numStr) {
             selectedNumber = numStr;
             const data = soldTickets[numStr];
@@ -467,7 +437,6 @@
             modalNumberBadgeEl.textContent = numStr;
 
             if (data) {
-                // Editar o liberar un número ya vendido
                 modalHeaderEl.className = 'px-6 py-4 bg-rose-600 text-white flex items-center justify-between';
                 modalTitleEl.textContent = 'Número Vendido';
                 modalSubtitleEl.textContent = 'Editar datos o liberar número';
@@ -482,7 +451,6 @@
                 saveTicketBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i><span>Actualizar Datos</span>`;
                 releaseTicketBtn.classList.remove('hidden');
             } else {
-                // Vender un número disponible
                 modalHeaderEl.className = 'px-6 py-4 bg-emerald-600 text-white flex items-center justify-between';
                 modalTitleEl.textContent = 'Registrar Venta';
                 modalSubtitleEl.textContent = 'Marcar número como vendido en línea';
@@ -501,14 +469,12 @@
             setTimeout(() => buyerNameInput.focus(), 50);
         }
 
-        // Cerrar Modal
         function closeTicketModal() {
             modalEl.classList.add('hidden');
             modalEl.classList.remove('flex');
             selectedNumber = null;
         }
 
-        // Guardar / Marcar número como vendido en Firestore
         async function handleSaveTicket(e) {
             e.preventDefault();
             if (!selectedNumber || !currentUser) return;
@@ -525,7 +491,6 @@
             closeTicketModal();
 
             try {
-                // Ruta estricta pública compartida: /artifacts/{appId}/public/data/raffle_tickets/{number}
                 const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'raffle_tickets', numToSave);
                 await setDoc(ticketRef, {
                     number: numToSave,
@@ -536,12 +501,11 @@
                 });
                 showToast(`Número ${numToSave} registrado a ${buyer}`, 'success');
             } catch (error) {
-                console.error("Error al guardar el número:", error);
-                showToast('Error de conexión al guardar. Intenta nuevamente.', 'error');
+                console.error("Error al guardar:", error);
+                showToast('Error de conexión al guardar.', 'error');
             }
         }
 
-        // Liberar número (eliminar documento de Firestore)
         async function handleReleaseTicket() {
             if (!selectedNumber || !currentUser) return;
 
@@ -551,17 +515,15 @@
             try {
                 const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'raffle_tickets', numToRelease);
                 await deleteDoc(ticketRef);
-                showToast(`Número ${numToRelease} liberado y disponible`, 'info');
+                showToast(`Número ${numToRelease} liberado`, 'info');
             } catch (error) {
-                console.error("Error al liberar el número:", error);
-                showToast('No se pudo liberar el número. Verifica tu conexión.', 'error');
+                console.error("Error al liberar:", error);
+                showToast('No se pudo liberar el número.', 'error');
             }
         }
 
-        // Inicializar Autenticación y Suscripción en Tiempo Real
         async function initRealtimeSync() {
             try {
-                // Autenticación obligatoria antes de consultar Firestore
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -573,14 +535,12 @@
 
                 userIdDisplayEl.textContent = currentUser.uid;
                 connectionDotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-                connectionStatusEl.textContent = 'En línea • Sincronizado en tiempo real';
+                connectionStatusEl.textContent = 'En línea • Sincronizado';
                 connectionStatusEl.className = 'text-emerald-700 font-semibold';
 
-                // Escuchar cambios en tiempo real en toda la colección pública de la rifa con manejo de errores
                 const ticketsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'raffle_tickets');
                 
                 onSnapshot(ticketsCollection, (snapshot) => {
-                    // Detectar cambios individuales para animar solo lo que cambió
                     const newSoldTickets = {};
                     const changedNumbers = new Set();
 
@@ -594,7 +554,6 @@
 
                     soldTickets = newSoldTickets;
 
-                    // Repintar todos los botones y animar los que sufrieron cambios recientes
                     for (let i = 0; i < 1000; i++) {
                         const numStr = formatNumber(i);
                         const shouldAnimate = !isInitialLoad && changedNumbers.has(numStr);
@@ -605,22 +564,19 @@
                     updateStats();
                     applyFilters();
                 }, (error) => {
-                    console.error("Error en sincronización en tiempo real:", error);
+                    console.error("Error de sincronización:", error);
                     connectionDotEl.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
                     connectionStatusEl.textContent = 'Error de sincronización';
-                    connectionStatusEl.className = 'text-rose-600 font-semibold';
                 });
 
             } catch (error) {
                 console.error("Error de autenticación:", error);
                 connectionDotEl.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
-                connectionStatusEl.textContent = 'Sin conexión al servidor';
+                connectionStatusEl.textContent = 'Sin conexión';
             }
         }
 
-        // Configurar Event Listeners de UI
         function setupEventListeners() {
-            // Buscador
             const searchInput = document.getElementById('search-input');
             const clearSearchBtn = document.getElementById('clear-search');
 
@@ -637,7 +593,6 @@
                 applyFilters();
             });
 
-            // Botones de Filtro (Todos / Disponibles / Vendidos)
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.filter-btn').forEach(b => {
@@ -652,13 +607,11 @@
                 });
             });
 
-            // Selector de Centenas
             document.getElementById('range-select').addEventListener('change', (e) => {
                 currentRange = e.target.value;
                 applyFilters();
             });
 
-            // Eventos del Modal
             document.getElementById('close-modal-btn').addEventListener('click', closeTicketModal);
             modalEl.addEventListener('click', (e) => {
                 if (e.target === modalEl) closeTicketModal();
@@ -673,7 +626,6 @@
             releaseTicketBtn.addEventListener('click', handleReleaseTicket);
         }
 
-        // Arrancar aplicación
         window.addEventListener('DOMContentLoaded', () => {
             buildGrid();
             setupEventListeners();
