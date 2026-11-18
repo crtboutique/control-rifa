@@ -259,7 +259,7 @@
         import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-raffle-app';
-        const firebaseConfig = JSON.parse(__firebase_config);
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "demo", projectId: "demo" };
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -347,7 +347,9 @@
             }
             
             gridEl.appendChild(fragment);
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         function updateTicketVisual(numStr, animate = false) {
@@ -463,7 +465,9 @@
                 releaseTicketBtn.classList.add('hidden');
             }
 
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
             modalEl.classList.remove('hidden');
             modalEl.classList.add('flex');
             setTimeout(() => buyerNameInput.focus(), 50);
