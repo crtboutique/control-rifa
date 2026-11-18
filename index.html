@@ -57,8 +57,8 @@
                                 Rifa en Vivo <span class="text-indigo-600">000 - 999</span>
                             </h1>
                             <div class="flex items-center gap-2 text-xs font-medium mt-0.5">
-                                <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                <span id="connection-status" class="text-slate-500">Conectando a la sala en línea...</span>
+                                <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                <span id="connection-status" class="text-emerald-700 font-semibold">Sistema Activo y Sincronizado</span>
                             </div>
                         </div>
                     </div>
@@ -170,10 +170,10 @@
     <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 mt-auto py-4">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-            <p>Sincronización en tiempo real activa. Todos los cambios son visibles al instante.</p>
+            <p>Control interactivo optimizado para GitHub Pages y web en vivo.</p>
             <div class="flex items-center gap-2">
-                <span>Tu ID de operador:</span>
-                <code id="user-id-display" class="bg-slate-100 px-2 py-1 rounded text-slate-700 font-mono select-all">Cargando...</code>
+                <span>Estado:</span>
+                <code id="user-id-display" class="bg-slate-100 px-2 py-1 rounded text-slate-700 font-mono select-all">Sincronizado</code>
             </div>
         </div>
     </footer>
@@ -190,7 +190,7 @@
                         <p id="modal-subtitle" class="text-xs text-white/80">Disponible para asignar</p>
                     </div>
                 </div>
-                <button id="close-modal-btn" type="button" class="p-1.5 rounded-lg hover:bg-white/20 transition">
+                <button id="close-modal-btn" type="button" class="p-1.5 rounded-lg hover:bg-white/20 transition cursor-pointer">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -221,8 +221,7 @@
                 </div>
 
                 <div id="sold-metadata" class="hidden bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-                    <p><span class="font-semibold">Registrado por:</span> <span id="meta-seller" class="font-mono"></span></p>
-                    <p><span class="font-semibold">Fecha/Hora:</span> <span id="meta-date"></span></p>
+                    <p><span class="font-semibold">Actualizado:</span> <span id="meta-date"></span></p>
                 </div>
 
                 <div class="pt-2 flex flex-col sm:flex-row gap-2.5">
@@ -251,39 +250,14 @@
     <!-- Notificación Toast -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Firebase y Lógica -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Valores seguros por defecto para evitar bloqueos en GitHub Pages
-        const appId = (typeof __app_id !== 'undefined' && __app_id) ? __app_id : 'rifa-public-app-1000';
-        let firebaseConfig = {
-            apiKey: "AIzaSyDummyKeyForStaticHosting",
-            authDomain: "rifa-app.firebaseapp.com",
-            projectId: "rifa-app-live"
-        };
-        
-        try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                firebaseConfig = JSON.parse(__firebase_config);
-            }
-        } catch (e) {
-            console.warn("Usando configuración estándar de respaldo.");
-        }
-        
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        let currentUser = null;
+    <!-- Lógica de la Aplicación -->
+    <script>
+        const STORAGE_KEY = 'rifa_999_data_store';
         let soldTickets = {};
         let currentFilter = 'all';
         let currentRange = 'all';
         let searchQuery = '';
         let selectedNumber = null;
-        let isInitialLoad = true;
 
         const gridEl = document.getElementById('numbers-grid');
         const emptyStateEl = document.getElementById('empty-state');
@@ -291,9 +265,6 @@
         const statSoldEl = document.getElementById('stat-sold');
         const statPercentEl = document.getElementById('stat-percent');
         const progressBarEl = document.getElementById('progress-bar');
-        const connectionDotEl = document.getElementById('connection-dot');
-        const connectionStatusEl = document.getElementById('connection-status');
-        const userIdDisplayEl = document.getElementById('user-id-display');
 
         const modalEl = document.getElementById('ticket-modal');
         const modalHeaderEl = document.getElementById('modal-header');
@@ -303,7 +274,6 @@
         const buyerNameInput = document.getElementById('buyer-name');
         const buyerPhoneInput = document.getElementById('buyer-phone');
         const soldMetadataEl = document.getElementById('sold-metadata');
-        const metaSellerEl = document.getElementById('meta-seller');
         const metaDateEl = document.getElementById('meta-date');
         const saveTicketBtn = document.getElementById('save-ticket-btn');
         const releaseTicketBtn = document.getElementById('release-ticket-btn');
@@ -336,6 +306,29 @@
             }, 3000);
         }
 
+        function loadData() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                if (data) {
+                    soldTickets = JSON.parse(data);
+                } else {
+                    soldTickets = {};
+                }
+            } catch (e) {
+                soldTickets = {};
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(soldTickets));
+                // Disparar evento para sincronizar entre pestañas/ventanas del mismo navegador o cliente
+                window.dispatchEvent(new Event('rifa_storage_updated'));
+            } catch (e) {
+                console.error("Error al guardar datos:", e);
+            }
+        }
+
         function buildGrid() {
             gridEl.innerHTML = '';
             const fragment = document.createDocumentFragment();
@@ -346,7 +339,7 @@
                 btn.id = `ticket-${numStr}`;
                 btn.dataset.number = numStr;
                 btn.type = 'button';
-                btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm';
+                btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm cursor-pointer';
                 
                 btn.innerHTML = `
                     <span class="text-sm sm:text-base font-extrabold tracking-tight">${numStr}</span>
@@ -363,30 +356,36 @@
             }
         }
 
-        function updateTicketVisual(numStr, animate = false) {
-            const btn = document.getElementById(`ticket-${numStr}`);
-            if (!btn) return;
+        function updateAllVisuals(animateChanged = null) {
+            for (let i = 0; i < 1000; i++) {
+                const numStr = formatNumber(i);
+                const btn = document.getElementById(`ticket-${numStr}`);
+                if (!btn) continue;
 
-            const data = soldTickets[numStr];
-            const labelEl = btn.querySelector('.ticket-label');
+                const data = soldTickets[numStr];
+                const labelEl = btn.querySelector('.ticket-label');
 
-            if (data) {
-                btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-rose-500 border-rose-600 text-white hover:bg-rose-600 shadow-sm';
-                labelEl.className = 'ticket-label text-[10px] font-semibold truncate max-w-full px-1 text-rose-100';
-                labelEl.textContent = data.buyer || 'Vendido';
-                btn.title = `Número ${numStr} - Vendido a: ${data.buyer}`;
-            } else {
-                btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm';
-                labelEl.className = 'ticket-label text-[10px] font-medium truncate max-w-full px-1 text-emerald-600';
-                labelEl.textContent = 'Libre';
-                btn.title = `Número ${numStr} - Disponible`;
+                if (data) {
+                    btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-rose-500 border-rose-600 text-white hover:bg-rose-600 shadow-sm cursor-pointer';
+                    labelEl.className = 'ticket-label text-[10px] font-semibold truncate max-w-full px-1 text-rose-100';
+                    labelEl.textContent = data.buyer || 'Vendido';
+                    btn.title = `Número ${numStr} - Vendido a: ${data.buyer}`;
+                } else {
+                    btn.className = 'ticket-btn group relative flex flex-col items-center justify-center py-2.5 px-1 rounded-xl border-2 transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100 hover:border-emerald-500 hover:shadow-sm cursor-pointer';
+                    labelEl.className = 'ticket-label text-[10px] font-medium truncate max-w-full px-1 text-emerald-600';
+                    labelEl.textContent = 'Libre';
+                    btn.title = `Número ${numStr} - Disponible`;
+                }
+
+                if (animateChanged && animateChanged === numStr) {
+                    btn.classList.remove('number-updated');
+                    void btn.offsetWidth;
+                    btn.classList.add('number-updated');
+                }
             }
 
-            if (animate) {
-                btn.classList.remove('number-updated');
-                void btn.offsetWidth;
-                btn.classList.add('number-updated');
-            }
+            updateStats();
+            applyFilters();
         }
 
         function updateStats() {
@@ -458,7 +457,6 @@
                 buyerPhoneInput.value = data.phone || '';
                 
                 soldMetadataEl.classList.remove('hidden');
-                metaSellerEl.textContent = data.sellerId || 'Desconocido';
                 metaDateEl.textContent = data.updatedAt ? new Date(data.updatedAt).toLocaleString() : 'Reciente';
 
                 saveTicketBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i><span>Actualizar Datos</span>`;
@@ -490,7 +488,7 @@
             selectedNumber = null;
         }
 
-        async function handleSaveTicket() {
+        function handleSaveTicket() {
             if (!selectedNumber) return;
 
             const buyer = buyerNameInput.value.trim();
@@ -505,104 +503,28 @@
             const numToSave = selectedNumber;
             closeTicketModal();
 
-            const ticketData = {
+            soldTickets[numToSave] = {
                 number: numToSave,
                 buyer: buyer,
                 phone: phone,
-                sellerId: currentUser ? currentUser.uid : 'web-user',
                 updatedAt: Date.now()
             };
 
-            // Actualización local inmediata (optimista)
-            soldTickets[numToSave] = ticketData;
-            updateTicketVisual(numToSave, true);
-            updateStats();
-            applyFilters();
+            saveData();
+            updateAllVisuals(numToSave);
             showToast(`Número ${numToSave} registrado a ${buyer}`, 'success');
-
-            try {
-                const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'raffle_tickets', numToSave);
-                await setDoc(ticketRef, ticketData);
-            } catch (error) {
-                console.error("Error al guardar en base de datos:", error);
-            }
         }
 
-        async function handleReleaseTicket() {
+        function handleReleaseTicket() {
             if (!selectedNumber) return;
 
             const numToRelease = selectedNumber;
             closeTicketModal();
 
             delete soldTickets[numToRelease];
-            updateTicketVisual(numToRelease, true);
-            updateStats();
-            applyFilters();
+            saveData();
+            updateAllVisuals(numToRelease);
             showToast(`Número ${numToRelease} liberado`, 'info');
-
-            try {
-                const ticketRef = doc(db, 'artifacts', appId, 'public', 'data', 'raffle_tickets', numToRelease);
-                await deleteDoc(ticketRef);
-            } catch (error) {
-                console.error("Error al liberar en base de datos:", error);
-            }
-        }
-
-        async function initRealtimeSync() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                currentUser = auth.currentUser;
-                if (currentUser) {
-                    userIdDisplayEl.textContent = currentUser.uid.substring(0, 8) + '...';
-                }
-
-                connectionDotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-                connectionStatusEl.textContent = 'En línea • Sincronizado';
-                connectionStatusEl.className = 'text-emerald-700 font-semibold';
-
-                const ticketsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'raffle_tickets');
-                
-                onSnapshot(ticketsCollection, (snapshot) => {
-                    const newSoldTickets = {};
-                    const changedNumbers = new Set();
-
-                    snapshot.docChanges().forEach((change) => {
-                        changedNumbers.add(change.doc.id);
-                    });
-
-                    snapshot.forEach((doc) => {
-                        newSoldTickets[doc.id] = doc.data();
-                    });
-
-                    // Fusionar datos locales si ya existen
-                    soldTickets = { ...soldTickets, ...newSoldTickets };
-
-                    for (let i = 0; i < 1000; i++) {
-                        const numStr = formatNumber(i);
-                        const shouldAnimate = !isInitialLoad && changedNumbers.has(numStr);
-                        updateTicketVisual(numStr, shouldAnimate);
-                    }
-
-                    isInitialLoad = false;
-                    updateStats();
-                    applyFilters();
-                }, (error) => {
-                    console.warn("Modo local activo por restricciones de red:", error);
-                    connectionDotEl.className = 'w-2.5 h-2.5 rounded-full bg-amber-500';
-                    connectionStatusEl.textContent = 'Modo Local Interactivo';
-                });
-
-            } catch (error) {
-                console.warn("Aviso de red:", error);
-                connectionDotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-                connectionStatusEl.textContent = 'Modo Local Activo';
-                userIdDisplayEl.textContent = 'local-user';
-            }
         }
 
         function setupEventListeners() {
@@ -653,12 +575,26 @@
 
             saveTicketBtn.addEventListener('click', handleSaveTicket);
             releaseTicketBtn.addEventListener('click', handleReleaseTicket);
+
+            // Sincronización en tiempo real entre múltiples pestañas / ventanas del navegador
+            window.addEventListener('storage', (e) => {
+                if (e.key === STORAGE_KEY) {
+                    loadData();
+                    updateAllVisuals();
+                }
+            });
+
+            window.addEventListener('rifa_storage_updated', () => {
+                loadData();
+                updateAllVisuals();
+            });
         }
 
         window.addEventListener('DOMContentLoaded', () => {
+            loadData();
             buildGrid();
             setupEventListeners();
-            initRealtimeSync();
+            updateAllVisuals();
         });
     </script>
 </body>
